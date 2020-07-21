@@ -127,3 +127,5 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+resources/._roots.pem
+resources/roots.pem
