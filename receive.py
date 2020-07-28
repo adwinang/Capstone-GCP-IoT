@@ -27,7 +27,7 @@ class Device(object):
         else:
             self.value += 1
         
-        print(self.value)
+        print("Current Value: {}".format(self.value))
 
     def wait_for_connection(self, timeout):
         """Wait for the device to become connected."""
@@ -72,17 +72,19 @@ class Device(object):
         if not payload:
             return
 
-        # The config is passed in the payload of the message. In this example,
-        # the server sends a serialized JSON string.
-        data = json.loads(payload)
-        if data['activate'] != self.acivate:
-            # If changing the state of the fan, print a message and
-            # update the internal state.
-            self.activate = data['activate']
-            if self.activate:
-                print('Device turned on.')
-            else:
-                print('Device turned off.')
+        print(payload)
+
+        # # The config is passed in the payload of the message. In this example,
+        # # the server sends a serialized JSON string.
+        # data = json.loads(payload)
+        # if data['activate'] != self.acivate:
+        #     # If changing the state of the fan, print a message and
+        #     # update the internal state.
+        #     self.activate = data['activate']
+        #     if self.activate:
+        #         print('Device turned on.')
+        #     else:
+        #         print('Device turned off.')
 
 
 def parse_command_line_args():
@@ -160,9 +162,9 @@ def main():
 
     client.loop_start()
 
-    mqtt_command_topic = '/device/{}/commands/#'.format(args.device_id)
+    mqtt_command_topic = '/device/{}/commands'.format(args.device_id)
 
-    device.wait_for_connection(5)
+    # device.wait_for_connection(5)
 
     client.subscribe(mqtt_command_topic, qos=0)
 
