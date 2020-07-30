@@ -127,7 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
 ._roots.pem
 roots.pem
 rsa_cert.pem
 rsa_private.pem
+service_account.json

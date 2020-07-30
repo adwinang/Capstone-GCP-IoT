@@ -6,10 +6,7 @@ import ssl
 import time
 
 import paho.mqtt.client as mqtt
-
-from connection import create_jwt
-
-from google.cloud import iot_v1
+from connection import create_jwt, error_str
 
 class Device(object):
     """Represents the state of a single device."""
@@ -74,17 +71,10 @@ class Device(object):
 
         print(payload)
 
-        # # The config is passed in the payload of the message. In this example,
-        # # the server sends a serialized JSON string.
-        # data = json.loads(payload)
-        # if data['activate'] != self.acivate:
-        #     # If changing the state of the fan, print a message and
-        #     # update the internal state.
-        #     self.activate = data['activate']
-        #     if self.activate:
-        #         print('Device turned on.')
-        #     else:
-        #         print('Device turned off.')
+        if self.activate:
+            self.activate = False
+        else:
+            self.activate = True
 
 
 def parse_command_line_args():
@@ -108,7 +98,7 @@ def parse_command_line_args():
                 required=True,
                 help='Which encryption algorithm to use to generate the JWT.')
         parser.add_argument(
-                '--cloud_region', default='us-central1', help='GCP cloud region')
+                '--cloud_region', default='asia-east1', help='GCP cloud region')
         parser.add_argument(
                 '--ca_certs',
                 default='roots.pem',
@@ -162,15 +152,17 @@ def main():
 
     client.loop_start()
 
-    mqtt_command_topic = '/device/{}/commands'.format(args.device_id)
+    mqtt_command_topic = '/device/{}/commands/#'.format(args.device_id)
 
-    # device.wait_for_connection(5)
+    # This is the topic that the device will receive configuration updates on.
+    mqtt_config_topic = '/devices/{}/config'.format(args.device_id)
 
-    client.subscribe(mqtt_command_topic, qos=0)
+    device.wait_for_connection(5)
 
-    while (device.value > -100):
+    client.subscribe(mqtt_config_topic, qos=1)
+
+    while (device.value > -100 or device.value < 100):
         device.update()
-
         time.sleep(1)
 
     client.disconnect()
@@ -179,3 +171,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+#python receive.py --project_id=letterbot-staging --registry_id=test --device_id=adwin-macbook --private_key_file=rsa_private.pem --algorithm=RS256
