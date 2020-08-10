@@ -161,9 +161,9 @@ def main():
 
     client.subscribe(mqtt_config_topic, qos=1)
 
-    while (device.value > -100 or device.value < 100):
+    while (device.value > -100 and device.value < 100):
         device.update()
-        time.sleep(1)
+        time.sleep(1)   
 
     client.disconnect()
     client.loop_stop()

@@ -1,31 +1,64 @@
 import argparse
-import datetime
+from datetime import datetime
 import json
 import os
 import ssl
 import time
-import datetime
+import random
+import threading
+import logging
 
 import paho.mqtt.client as mqtt
 from connection import create_jwt, error_str
+
+# To set up the device
+# EXPORT "GOOGLE_CLOUD_PROJECT"
+# EXPORT "PROJECT_ID"
+# EXPORT "DEVICE_ID"
 
 class Device(object):
     """Represents the state of a single device."""
 
     def __init__(self):
-        self.value = 0
-        self.activate = False
+        self.running = True
+        self.controlled = False
         self.connected = False
+
+        # List of allowable Status; Idling, Moving, Stuck, Frozen, Picked Up, Task Completed
+        self.listOfStatus = ["Idling", "Moving", "Stuck", "Frozen", "Picked Up", "Task Completed"]
+        self.status = "Idling"
+        self.taskQueue = []
+        self.task = ""
+
+    def setup_telemetry_data(self):
+        timeStamp = datetime.now().strftime("%H:%M:%S.%f - %d %m %Y")
+        # objects = ["Person", "Dog", "Wall", "Car", "Cat", "Cups", "Scissors", "Pen", "Bicycle"]
+        noOfObjects = random.randint(0, 5)
+        # objectsDetected = random.choices(objects, k=noOfObjects)
+
+        mockdata = {"Timestamp":timeStamp, "No_Of_Objects":noOfObjects, "Status":self.status, "Task":self.task}
+        logging.debug(mockdata)
+        return mockdata
+
+    def performTask(self):
+        for pTask in self.taskQueue:
+            taskPeriod = random.randint(10,20)
+            print("Performing Task: {}".format(pTask))
+            self.task = pTask
+
+
+        return 
+
 
     def update(self):
         """This function will update the variables
         """
-        if self.activate:
-            self.value -= 1
-        else:
-            self.value += 1
+        if self.status == "Idling":      
+            taskThread = threading.Thread(target=performTask)
+            taskThread.start()
+        self.setup_telemetry_data()
         
-        print("Current Value: {}".format(self.value))
+
 
     def wait_for_connection(self, timeout):
         """Wait for the device to become connected."""
@@ -39,12 +72,12 @@ class Device(object):
 
     def on_connect(self, unused_client, unused_userdata, unused_flags, rc):
         """Callback for when a device connects."""
-        print('Connection Result:', error_str(rc))
+        logging.error('Connection Result:', error_str(rc))
         self.connected = True
 
     def on_disconnect(self, unused_client, unused_userdata, rc):
         """Callback for when a device disconnects."""
-        print('Disconnected:', error_str(rc))
+        logging.error('Disconnected:', error_str(rc))
         self.connected = False
 
     def on_publish(self, unused_client, unused_userdata, unused_mid):
@@ -69,17 +102,60 @@ class Device(object):
         # will receive a config with an empty payload.
         if not payload:
             return
+        
+        structuredData = json.loads(payload)
+        if "Task" in structuredData:
+            self.taskQueue.extend(structuredData["Task"])
 
-        print(payload)
+        if "Deactivate" in structuredData:
+            if structuredData["Deactivate"] == True:
+                self.running = False
+        
+    
+def parse_command_line_args():
+        """Parse command line arguments."""
+        parser = argparse.ArgumentParser(description=(
+                'Example Google Cloud IoT Core MQTT device connection code.'))
+        parser.add_argument(
+                '--project_id',
+                default=os.environ.get('GOOGLE_CLOUD_PROJECT'),
+                help='GCP cloud project name')
+        parser.add_argument(
+                '--registry_id', 
+                default=os.environ.get('REGISTRY_ID'), 
+                help='Cloud IoT Core registry id')
+        parser.add_argument(
+                '--device_id', 
+                default=os.environ.get('DEVICE_ID'),
+                help='Cloud IoT Core device id')
+        parser.add_argument(
+                '--private_key_file',
+                default="rsa_private.pem", 
+                help='Path to private key file.')
+        parser.add_argument(
+                '--algorithm',
+                choices=('RS256', 'ES256'),
+                default="RS256",
+                help='Which encryption algorithm to use to generate the JWT.')
+        parser.add_argument(
+                '--cloud_region', 
+                default='asia-east1', 
+                help='GCP cloud region')
+        parser.add_argument(
+                '--ca_certs',
+                default='roots.pem',
+                help=('CA root from https://pki.google.com/roots.pem'))
+        parser.add_argument(
+                '--mqtt_bridge_hostname',
+                default='mqtt.googleapis.com',
+                help='MQTT bridge hostname.')
+        parser.add_argument(
+                '--mqtt_bridge_port',
+                default=8883,
+                type=int,
+                help='MQTT bridge port.')
 
-        if self.activate:
-            self.activate = False
-        else:
-            self.activate = True
-
-def setup_mockdata():
-    timeStamp = time.time()
-    objectsDetect = ["Person", "Dog", "Wall", "Car", "Cat", "Cups", "Scissors", "Pen", "Bicycle"]
+        return parser.parse_args()
 
 def main():
     args = parse_command_line_args()
@@ -107,6 +183,7 @@ def main():
 
     device = Device()
 
+    # Handling callbacks from Cloud IoT
     client.on_connect = device.on_connect
     client.on_publish = device.on_publish
     client.on_disconnect = device.on_disconnect
@@ -117,18 +194,24 @@ def main():
 
     client.loop_start()
 
-    mqtt_command_topic = '/device/{}/commands/#'.format(args.device_id)
-
-    # This is the topic that the device will receive configuration updates on.
+    # This is the topic that the device will receive commands on.
     mqtt_config_topic = '/devices/{}/config'.format(args.device_id)
 
+    # This is the topic that the device will publish telemetry data on
+    mqtt_publish_topic = '/devices/{}/event'.format(args.device_id)
+
+    # Ensure connection in case of unstable internet
     device.wait_for_connection(5)
 
+    # Listen to the config topic for commands from
     client.subscribe(mqtt_config_topic, qos=1)
 
-    while (device.value > -100 and device.value < 100):
-        device.update()
-        time.sleep(1)
+    while (device.running):
+        payload = device.update()
+        # Publish "payload" to the MQTT topic. qos=1 means at least once
+        # delivery. Cloud IoT Core also supports qos=0 for at most once
+        # delivery.     
+        client.publish(mqtt_topic, payload, qos=1)
 
     client.disconnect()
     client.loop_stop()
