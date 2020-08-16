@@ -38,7 +38,7 @@ class Device(object):
         # objectsDetected = random.choices(objects, k=noOfObjects)
 
         mockdata = {"Timestamp":timeStamp, "No_Of_Objects":noOfObjects, "Status":self.status, "Task":self.task}
-        logging.debug(mockdata)
+        print(mockdata)
         return mockdata
 
     async def performTask(self):
@@ -47,8 +47,6 @@ class Device(object):
             asyncio.sleep(taskPeriod)
             print("Performing Task: {}".format(pTask))
             self.task = pTask
-
-
         return
 
 
@@ -56,7 +54,7 @@ class Device(object):
         """This function will update the variables
         """
         if self.status == "Idling":
-            taskThread = threading.Thread(target=performTask)
+            taskThread = threading.Thread(target=self.performTask)
             taskThread.start()
         self.setup_telemetry_data()
 
@@ -74,12 +72,12 @@ class Device(object):
 
     def on_connect(self, unused_client, unused_userdata, unused_flags, rc):
         """Callback for when a device connects."""
-        logging.error('Connection Result:', error_str(rc))
+        logging.debug('Connection Result:', error_str(rc))
         self.connected = True
 
     def on_disconnect(self, unused_client, unused_userdata, rc):
         """Callback for when a device disconnects."""
-        logging.error('Disconnected:', error_str(rc))
+        logging.debug('Disconnected:', error_str(rc))
         self.connected = False
 
     def on_publish(self, unused_client, unused_userdata, unused_mid):
@@ -200,7 +198,7 @@ def main():
     mqtt_config_topic = '/devices/{}/config'.format(args.device_id)
 
     # This is the topic that the device will publish telemetry data on
-    mqtt_publish_topic = '/devices/{}/event'.format(args.device_id)
+    mqtt_publish_topic = '/devices/{}/events'.format(args.device_id)
 
     # Ensure connection in case of unstable internet
     device.wait_for_connection(5)
@@ -213,7 +211,8 @@ def main():
         # Publish "payload" to the MQTT topic. qos=1 means at least once
         # delivery. Cloud IoT Core also supports qos=0 for at most once
         # delivery.
-        client.publish(mqtt_topic, payload, qos=1)
+        client.publish(mqtt_publish_topic, payload, qos=1)
+        time.sleep(1)
 
     client.disconnect()
     client.loop_stop()
