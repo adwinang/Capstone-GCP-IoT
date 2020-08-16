@@ -7,6 +7,7 @@ import time
 import random
 import threading
 import logging
+import asyncio
 
 import paho.mqtt.client as mqtt
 from connection import create_jwt, error_str
@@ -40,24 +41,25 @@ class Device(object):
         logging.debug(mockdata)
         return mockdata
 
-    def performTask(self):
+    async def performTask(self):
         for pTask in self.taskQueue:
             taskPeriod = random.randint(10,20)
+            asyncio.sleep(taskPeriod)
             print("Performing Task: {}".format(pTask))
             self.task = pTask
 
 
-        return 
+        return
 
 
     def update(self):
         """This function will update the variables
         """
-        if self.status == "Idling":      
+        if self.status == "Idling":
             taskThread = threading.Thread(target=performTask)
             taskThread.start()
         self.setup_telemetry_data()
-        
+
 
 
     def wait_for_connection(self, timeout):
@@ -102,7 +104,7 @@ class Device(object):
         # will receive a config with an empty payload.
         if not payload:
             return
-        
+
         structuredData = json.loads(payload)
         if "Task" in structuredData:
             self.taskQueue.extend(structuredData["Task"])
@@ -110,8 +112,8 @@ class Device(object):
         if "Deactivate" in structuredData:
             if structuredData["Deactivate"] == True:
                 self.running = False
-        
-    
+
+
 def parse_command_line_args():
         """Parse command line arguments."""
         parser = argparse.ArgumentParser(description=(
@@ -121,16 +123,16 @@ def parse_command_line_args():
                 default=os.environ.get('GOOGLE_CLOUD_PROJECT'),
                 help='GCP cloud project name')
         parser.add_argument(
-                '--registry_id', 
-                default=os.environ.get('REGISTRY_ID'), 
+                '--registry_id',
+                default=os.environ.get('REGISTRY_ID'),
                 help='Cloud IoT Core registry id')
         parser.add_argument(
-                '--device_id', 
+                '--device_id',
                 default=os.environ.get('DEVICE_ID'),
                 help='Cloud IoT Core device id')
         parser.add_argument(
                 '--private_key_file',
-                default="rsa_private.pem", 
+                default="rsa_private.pem",
                 help='Path to private key file.')
         parser.add_argument(
                 '--algorithm',
@@ -138,8 +140,8 @@ def parse_command_line_args():
                 default="RS256",
                 help='Which encryption algorithm to use to generate the JWT.')
         parser.add_argument(
-                '--cloud_region', 
-                default='asia-east1', 
+                '--cloud_region',
+                default='asia-east1',
                 help='GCP cloud region')
         parser.add_argument(
                 '--ca_certs',
@@ -177,7 +179,7 @@ def main():
             password=create_jwt(
                     args.project_id, args.private_key_file, args.algorithm))
 
-    
+
     # Enable SSL/TLS support.
     client.tls_set(ca_certs=args.ca_certs)
 
@@ -210,7 +212,7 @@ def main():
         payload = device.update()
         # Publish "payload" to the MQTT topic. qos=1 means at least once
         # delivery. Cloud IoT Core also supports qos=0 for at most once
-        # delivery.     
+        # delivery.
         client.publish(mqtt_topic, payload, qos=1)
 
     client.disconnect()
