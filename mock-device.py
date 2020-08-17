@@ -20,7 +20,7 @@ from connection import create_jwt, error_str
 class Device(object):
     """Represents the state of a single device."""
 
-    def __init__(self):
+    def __init__(self, deviceId):
         self.running = True
         self.controlled = False
         self.connected = False
@@ -30,16 +30,28 @@ class Device(object):
         self.status = "Idling"
         self.taskQueue = []
         self.task = ""
+        self.deviceId = deviceId
 
     def setup_telemetry_data(self):
-        timeStamp = datetime.now().strftime("%H:%M:%S.%f - %d %m %Y")
+        # dateTime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # timeZone = time.strftime("%Z", time.gmtime())
+        timeStamp = "{}".format(datetime.now().astimezone().isoformat(timespec='minutes'))
         # objects = ["Person", "Dog", "Wall", "Car", "Cat", "Cups", "Scissors", "Pen", "Bicycle"]
+        tasks = ["Location A", "Location B", "Location C", "Location D", "Location E", "Location F", ""]
         noOfObjects = random.randint(0, 5)
-        # objectsDetected = random.choices(objects, k=noOfObjects)
+        # objectsDetected = random.choices(objects, k=noOfObjects)[0]
+        self.status = random.choices(self.listOfStatus, k=1)[0]
+        self.task = random.choices(tasks, k=1)[0]
 
-        mockdata = {"Timestamp":timeStamp, "No_Of_Objects":noOfObjects, "Status":self.status, "Task":self.task}
+        if self.status == "Frozen":
+            if noOfObjects <= 4:
+                self.status = "Moving"
+        if self.status == "Stuck":
+            self.status = "Moving"
+
+        mockdata = {"TimeStamp":timeStamp,"Device": self.deviceId, "No_Of_Objects":noOfObjects, "Status":self.status, "Task":self.task}
         print(mockdata)
-        return mockdata
+        return json.dumps(mockdata)
 
     async def performTask(self):
         for pTask in self.taskQueue:
@@ -56,7 +68,7 @@ class Device(object):
         if self.status == "Idling":
             taskThread = threading.Thread(target=self.performTask)
             taskThread.start()
-        self.setup_telemetry_data()
+        return self.setup_telemetry_data()
 
 
 
@@ -181,7 +193,7 @@ def main():
     # Enable SSL/TLS support.
     client.tls_set(ca_certs=args.ca_certs)
 
-    device = Device()
+    device = Device(args.device_id)
 
     # Handling callbacks from Cloud IoT
     client.on_connect = device.on_connect
